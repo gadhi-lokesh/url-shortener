@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>URL Shortener — Dashboard</title>
+  <style>
+    /* ---------- Reset & base ---------- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      #0f172a;
+      --surface: #1e293b;
+      --border:  #334155;
+      --accent:  #6366f1;
+      --accent2: #818cf8;
+      --text:    #e2e8f0;
+      --muted:   #94a3b8;
+      --green:   #22c55e;
+      --red:     #ef4444;
+      --yellow:  #eab308;
+      --radius:  10px;
+      --font:    'Segoe UI', system-ui, sans-serif;
+    }
+    body { background: var(--bg); color: var(--text); font-family: var(--font);
+           min-height: 100vh; padding: 2rem 1rem; }
+
+    /* ---------- Layout ---------- */
+    .container { max-width: 1100px; margin: 0 auto; }
+    header { display: flex; align-items: center; justify-content: space-between;
+             margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+    header h1 { font-size: 1.6rem; font-weight: 700; }
+    header h1 span { color: var(--accent2); }
+
+    /* ---------- Shorten form ---------- */
+    .card { background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 1.5rem; margin-bottom: 2rem; }
+    .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: var(--muted); }
+    .form-row { display: flex; gap: .75rem; flex-wrap: wrap; }
+    .form-row input {
+      flex: 1; min-width: 180px; background: var(--bg); border: 1px solid var(--border);
+      color: var(--text); padding: .6rem .9rem; border-radius: 6px; font-size: .9rem;
+      outline: none; transition: border-color .2s;
+    }
+    .form-row input:focus { border-color: var(--accent); }
+    .form-row input::placeholder { color: var(--muted); }
+    .btn {
+      background: var(--accent); color: #fff; border: none; padding: .6rem 1.3rem;
+      border-radius: 6px; font-size: .9rem; font-weight: 600; cursor: pointer;
+      transition: opacity .2s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn.secondary { background: var(--border); }
+    #form-result { margin-top: 1rem; font-size: .85rem; display: none; }
+    #form-result .result-box {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: .75rem 1rem; display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+    }
+    #form-result a { color: var(--accent2); word-break: break-all; }
+    .copy-btn { background: var(--border); color: var(--text); border: none; padding: .3rem .7rem;
+                border-radius: 4px; cursor: pointer; font-size: .8rem; white-space: nowrap; }
+    .copy-btn:hover { background: var(--accent); color: #fff; }
+    .error-msg { color: var(--red); }
+
+    /* ---------- Stats bar ---------- */
+    .stats-bar { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: .9rem 1.2rem; flex: 1; min-width: 120px; }
+    .stat .value { font-size: 1.6rem; font-weight: 700; }
+    .stat .label { font-size: .75rem; color: var(--muted); margin-top: .2rem; }
+
+    /* ---------- Table ---------- */
+    .table-wrap { background: var(--surface); border: 1px solid var(--border);
+                  border-radius: var(--radius); overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    thead th { background: var(--bg); padding: .75rem 1rem; text-align: left;
+               font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border); }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(99,102,241,.07); }
+    td { padding: .7rem 1rem; vertical-align: middle; }
+    td.url-cell { max-width: 260px; }
+    td.url-cell a { color: var(--accent2); text-decoration: none; word-break: break-all;
+                    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+                    overflow: hidden; }
+    td.url-cell a:hover { text-decoration: underline; }
+
+    /* ---------- Badges ---------- */
+    .badge { display: inline-block; padding: .2rem .55rem; border-radius: 999px;
+             font-size: .7rem; font-weight: 600; }
+    .badge.active  { background: rgba(34,197,94,.15);  color: var(--green); }
+    .badge.expired { background: rgba(234,179,8,.15);  color: var(--yellow); }
+
+    /* ---------- Short-link cell ---------- */
+    .short-cell { display: flex; align-items: center; gap: .4rem; }
+    .short-cell a { color: var(--accent2); font-weight: 600; white-space: nowrap; }
+    .short-cell .copy-btn { font-size: .7rem; }
+
+    /* ---------- Action buttons ---------- */
+    .actions { display: flex; gap: .4rem; }
+    .action-btn {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      padding: .3rem .55rem; border-radius: 5px; cursor: pointer; font-size: .75rem;
+      transition: all .15s;
+    }
+    .action-btn:hover { border-color: var(--red); color: var(--red); }
+
+    /* ---------- Empty state ---------- */
+    .empty { text-align: center; padding: 3rem; color: var(--muted); }
+    .empty svg { margin-bottom: 1rem; opacity: .4; }
+
+    /* ---------- Toast ---------- */
+    #toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--accent);
+      color: #fff; padding: .7rem 1.2rem; border-radius: 8px; font-size: .85rem;
+      font-weight: 600; opacity: 0; pointer-events: none;
+      transition: opacity .3s; z-index: 999;
+    }
+    #toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <h1>🔗 URL <span>Shortener</span></h1>
+    <span style="color:var(--muted);font-size:.85rem;">Link Management Dashboard</span>
+  </header>
+
+  <!-- Create link card -->
+  <div class="card">
+    <h2>✂️ SHORTEN A URL</h2>
+    <div class="form-row">
+      <input id="url-input"     type="url"  placeholder="https://your-long-url.com/path?query=value" />
+      <input id="custom-input"  type="text" placeholder="custom-code (optional)" style="max-width:180px;" />
+      <input id="expiry-input"  type="number" min="1" placeholder="Expires in days" style="max-width:160px;" />
+      <button class="btn" onclick="shortenUrl()">Shorten</button>
+    </div>
+    <div id="form-result"></div>
+  </div>
+
+  <!-- Stats bar -->
+  {% set total = links | length %}
+  {% set total_clicks = links | sum(attribute='click_count') %}
+  {% set active = links | selectattr('is_expired', 'equalto', False) | list | length %}
+  <div class="stats-bar">
+    <div class="stat">
+      <div class="value">{{ total }}</div>
+      <div class="label">Total Links (recent 50)</div>
+    </div>
+    <div class="stat">
+      <div class="value">{{ active }}</div>
+      <div class="label">Active Links</div>
+    </div>
+    <div class="stat">
+      <div class="value">{{ total - active }}</div>
+      <div class="label">Expired Links</div>
+    </div>
+    <div class="stat">
+      <div class="value">{{ total_clicks }}</div>
+      <div class="label">Total Clicks</div>
+    </div>
+  </div>
+
+  <!-- Links table -->
+  <div class="table-wrap">
+    {% if links %}
+    <table>
+      <thead>
+        <tr>
+          <th>Short Link</th>
+          <th>Original URL</th>
+          <th>Clicks</th>
+          <th>Created</th>
+          <th>Expires</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="links-tbody">
+      {% for link in links %}
+        <tr id="row-{{ link.short_code }}">
+          <td>
+            <div class="short-cell">
+              <a href="{{ link.short_url }}" target="_blank">{{ link.short_code }}</a>
+              <button class="copy-btn" onclick="copyText('{{ link.short_url }}', this)">Copy</button>
+            </div>
+          </td>
+          <td class="url-cell"><a href="{{ link.original_url }}" target="_blank" title="{{ link.original_url }}">{{ link.original_url }}</a></td>
+          <td><strong>{{ link.click_count }}</strong></td>
+          <td style="white-space:nowrap;color:var(--muted)">{{ link.created_at[:10] }}</td>
+          <td style="white-space:nowrap;color:var(--muted)">{{ link.expires_at[:10] if link.expires_at else '—' }}</td>
+          <td>
+            {% if link.is_expired %}
+              <span class="badge expired">Expired</span>
+            {% else %}
+              <span class="badge active">Active</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="actions">
+              <button class="action-btn" onclick="deleteLink('{{ link.short_code }}')" title="Delete">🗑 Delete</button>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">
+      <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+      </svg>
+      <p>No links yet. Shorten your first URL above!</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div><!-- /container -->
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+  /* ---------- Toast ---------- */
+  function showToast(msg, ms = 2500) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), ms);
+  }
+
+  /* ---------- Copy to clipboard ---------- */
+  function copyText(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = orig, 1500);
+      showToast('Short URL copied to clipboard!');
+    });
+  }
+
+  /* ---------- Shorten ---------- */
+  async function shortenUrl() {
+    const url      = document.getElementById('url-input').value.trim();
+    const code     = document.getElementById('custom-input').value.trim();
+    const expiry   = document.getElementById('expiry-input').value.trim();
+    const resultEl = document.getElementById('form-result');
+
+    if (!url) { resultEl.style.display='block'; resultEl.innerHTML='<p class="error-msg">Please enter a URL.</p>'; return; }
+
+    const body = { url };
+    if (code)   body.custom_code    = code;
+    if (expiry) body.expires_in_days = parseInt(expiry, 10);
+
+    try {
+      const res  = await fetch('/api/shorten', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      resultEl.style.display = 'block';
+
+      if (!res.ok) {
+        resultEl.innerHTML = `<p class="error-msg">Error: ${data.error}</p>`;
+        return;
+      }
+
+      resultEl.innerHTML = `
+        <div class="result-box">
+          <span>✅ Shortened:</span>
+          <a href="${data.short_url}" target="_blank">${data.short_url}</a>
+          <button class="copy-btn" onclick="copyText('${data.short_url}', this)">Copy</button>
+        </div>`;
+
+      // Refresh page to show new link in table
+      setTimeout(() => location.reload(), 1800);
+    } catch (e) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `<p class="error-msg">Network error: ${e.message}</p>`;
+    }
+  }
+
+  /* ---------- Delete ---------- */
+  async function deleteLink(code) {
+    if (!confirm(`Delete short link "${code}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/links/${code}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) {
+        document.getElementById(`row-${code}`)?.remove();
+        showToast(`"${code}" deleted.`);
+      } else {
+        showToast(`Error: ${data.error}`, 3000);
+      }
+    } catch (e) {
+      showToast(`Network error: ${e.message}`, 3000);
+    }
+  }
+
+  /* ---------- Enter key on URL input ---------- */
+  document.getElementById('url-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') shortenUrl();
+  });
+</script>
+</body>
+</html>
